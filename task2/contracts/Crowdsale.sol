@@ -18,12 +18,12 @@ contract Crowdsale is Ownable {
     uint exchangeRate_ = 1000 wei; // 1000 wei = 1 token
     AndreyToken token_;
     uint timeStart_;
-    uint duration_ = 300;
+    uint duration_ = 5 seconds;
     bool isFinished_ = false;
     uint percent2Developers = 10;
-    address[] developersAddresses;
-    uint limitSpends = 10_000 wei;
-    mapping(address => uint) ethsSpent;
+    address[] public developersAddresses;
+    uint limitSpends = 100_000 wei;
+    mapping(address => uint) public ethsSpent;
 
     constructor() Ownable() {
         timeStart_ = block.timestamp;
@@ -38,6 +38,10 @@ contract Crowdsale is Ownable {
     }
 
     function checkIsFinished() internal {
+        // это нерпавильно, так как по истечению crowdsale смогут
+        // выполняться только view функии,
+        // а они не создают транзщакции, поэтому не очень ясно
+        // как по истечению этого времени выпустить 10 поцентов команде
         if (!isFinished_ && block.timestamp >= timeStart_ + duration_) {
             isFinished_ = true;
             transfer2Developers();
@@ -60,7 +64,7 @@ contract Crowdsale is Ownable {
         require(!isFinished_, "Crowdsale is finished");
         require(msg.value >= exchangeRate_, "not enought ethereum");
         require(
-            ethsSpent[msg.sender] < limitSpends,
+            ethsSpent[msg.sender] + exchangeRate_ <= limitSpends,
             "you bought too much tokens"
         );
 
@@ -70,10 +74,7 @@ contract Crowdsale is Ownable {
         ) / exchangeRate_;
 
         token_.addTokens(msg.sender, nTokens);
-        ethsSpent[msg.sender] += Math.min(
-            msg.value,
-            (limitSpends - ethsSpent[msg.sender])
-        );
+        ethsSpent[msg.sender] += nTokens * exchangeRate_;
 
         payable(msg.sender).transfer(msg.value % exchangeRate_);
 
@@ -86,17 +87,14 @@ contract Crowdsale is Ownable {
         require(!isFinished_, "Crowdsale is finished");
         require(msg.value >= exchangeRate_ * nTokens, "not enought ethereum");
         require(
-            ethsSpent[msg.sender] + exchangeRate_ * nTokens < limitSpends,
+            ethsSpent[msg.sender] + exchangeRate_ * nTokens <= limitSpends,
             "you bought too much tokens"
         );
 
         token_.addTokens(msg.sender, nTokens);
-        ethsSpent[msg.sender] += Math.min(
-            msg.value,
-            (limitSpends - ethsSpent[msg.sender])
-        );
+        ethsSpent[msg.sender] += exchangeRate_ * nTokens;
 
-        payable(msg.sender).transfer(msg.value % exchangeRate_);
+        payable(msg.sender).transfer(msg.value - exchangeRate_ * nTokens);
 
         sendFunds2Owner();
     }
